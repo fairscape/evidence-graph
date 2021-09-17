@@ -4,11 +4,8 @@
 #The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
 
 #THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-import flask, stardog, logging, os, jwt
+import flask, logging, os, jwt
 from flask import Flask, render_template, request, redirect,jsonify
-from utils import *
-from auth import *
-
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -28,53 +25,27 @@ def homepage():
 @user_level_permission
 def eg_builder(ark):
 
-    logger.info('Homepage handling request %s', request)
-
     token = request.headers.get("Authorization")
+
     NO_AUTH = os.environ.get("NO_AUTH",False)
     if NO_AUTH:
         token = jwt.encode({'name': 'Admin','role':'admin','sub':'admin-id','groups':['test'],'aud':'https://fairscape.org'}, 'test secret', algorithm='HS256')
-    args = request.args
 
+    args = request.args
     include = []
     for k, v in args.items():
         if v == '1':
             include.append(k)
 
+    if not valid_ark(ark):
+        return flask.jsonify({"error":"Improperly formatted Identifier"}), 400
 
     #Check to make sure request is for known ark
     try:
-        exists, eg_url = eg_exists(ark,token)
+        ark_exists(ark,token)
     except:
         logger.error('User gievn ark does not exist ' + str(ark))
         return jsonify({'error':'Given ark does not exist.'}),503
 
-    if exists:
-        eg_id = '/'.join(eg_url.split('/')[-2:])
-        r = requests.get(ORS_URL + eg_id,headers = {"Authorization": token})
-        return jsonify(r.json())
 
-    logger.info('Creating Evidence Graph for %s', ark)
-    try:
-        eg = create_eg_json(HOST_URL + 'mds/' + ark,keep = include)
-    except:
-        logger.error('Failed to create eg for ark: %s',ark,
-                        exc_info=True)
-        return jsonify({'error':'Server failed to create evidence graph.'}),503
-
-    #
-    # Mint ark for evidence graph
-    #
-    try:
-        eg_id = mint_eg_id(eg)
-        add_eg_to_og_id(ark,eg_id)
-    except:
-        logger.error('Minting evidence graph failed.',exc_info=True)
-        return eg
-
-    return eg
-
-if __name__ == "__main__":
-    if TESTING:
-        app.config['TESTING'] = True
-    app.run(host='0.0.0.0')
+    

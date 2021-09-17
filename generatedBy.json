@@ -1,0 +1,19 @@
+{
+  "evi:generatedBy":{
+    "@type":"evi:Computation",
+    "evi:usedSoftware":{
+      "@type":"SoftwareSourceCode",
+      "name":"Evidence Graph Service Version 1.0",
+      "codeRepository":"Link to Github",
+      "programmingLanguage":"python3",
+    }
+    "evi:usedService":{
+      "@type":"prov:SoftwareAgent",
+      "name":"FAIRSCAPE deployed at ...",
+      Point to local FAIRSCAPE deployment
+    }
+  }
+  {
+  Actual EG
+  }
+}
