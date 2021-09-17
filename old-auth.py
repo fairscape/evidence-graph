@@ -4,7 +4,7 @@
 #The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
 
 #THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-import requests
+import requests, jwt
 import flask
 import json
 import os
@@ -12,8 +12,48 @@ from functools import wraps
 
 AUTH_SERVICE = os.environ.get("AUTH_SERVICE", "http://clarklab.uvarc.io/auth")
 TESTING = os.environ.get("NO_AUTH",False)
+KEY = os.environ.get('AUTH_KEY')
 ISSUER = "ors:transfer"
 
+def check_token(handler):
+    '''
+    Function Wrapper for all endpoints that checks that an Authorization is present in request headers.
+    If not the wrapper will return an error.
+
+    Used for API service calls where a Globus Token is required.
+    '''
+
+    @wraps(handler)
+    def wrapped_handler(*args, **kwargs):
+        if os.environ.get("NO_AUTH",False):
+            return handler(*args, **kwargs)
+
+        if flask.request.headers.get("Authorization") is None:
+            return flask.Response(
+                response= json.dumps({"error": "Request Missing Authorization Header"}),
+                status=403,
+                content_type="application/json"
+            )
+
+        encoded_token = flask.request.headers.get("Authorization")
+        json_token = jwt.decode(encoded_token, KEY, algorithms='HS256',audience = 'https://fairscape.org')
+        print(json_token)
+        if json_token.get('role',None) == 'admin' or json_token.get('role',None) == 'user':
+            return handler(*args, **kwargs)
+        elif allowed_user(json_token):
+            return handler(*args, **kwargs)
+        else:
+            return flask.Response(
+                    response=json.dumps({"error": "failed to authorize user"}),
+                    status=401,
+                    content_type="application/json"
+                    )
+    return wrapped_handler
+
+def allowed_user(json):
+    if json_token.get('role',None) == 'user':
+        return True
+    return False
 
 def token_required(handler):
     '''
@@ -25,7 +65,7 @@ def token_required(handler):
 
     @wraps(handler)
     def wrapped_handler(*args, **kwargs):
-        if flask.current_app.config.get('TESTING', False):
+        if os.environ.get("NO_AUTH",False):
             return handler(*args, **kwargs)
         if flask.request.headers.get("Authorization") is None:
             return flask.Response(

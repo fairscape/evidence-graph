@@ -5,7 +5,6 @@
 
 #THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 import os, io, stardog,json
-import pandas as pd
 from werkzeug.routing import PathConverter
 import requests
 import time
@@ -15,6 +14,7 @@ import time
 SD_URL = os.environ.get('STARDOG_URL','http://stardog.uvadcos.io')
 SD_USERNAME = os.environ.get('STARDOG_USERNAME')
 SD_PASSWORD = os.environ.get('STARDOG_PASSWORD')
+HOST_URL = os.environ.get('HOST_URL','')
 
 ORS_URL = os.environ.get("ORS_URL","ors.uvadco.io/")
 EVI_PREFIX = 'evi:'
@@ -36,12 +36,12 @@ def mint_eg_id(eg):
     r = requests.post(ORS_URL + "shoulder/ark:99999",data = json.dumps(eg))
 
     if 'created' in r.json():
-        return r.json()['created']
+        return HOST_URL + 'evidence/' + r.json()['created']
 
 def add_eg_to_og_id(ark,eg_id):
 
     r = requests.put(ORS_URL +  ark,
-                data=json.dumps({EVI_PREFIX + 'hasEvidenceGraph':eg_id}))
+                data=json.dumps({EVI_PREFIX + 'hasEvidence':eg_id}))
 
 def eg_exists(ark,token):
     '''
@@ -54,8 +54,10 @@ def eg_exists(ark,token):
 
 
 
-    if EVI_PREFIX + 'hasEvidenceGraph' in meta.keys():
-        return True, meta[EVI_PREFIX + 'hasEvidenceGraph']
+    if EVI_PREFIX + 'hasEvidence' in meta.keys():
+        if meta[EVI_PREFIX + 'hasEvidence'] == HOST_URL + 'evidence/' + ark:
+            return False, 0
+        return True, meta[EVI_PREFIX + 'hasEvidence']
 
     elif 'error' in meta.keys():
         raise Exception
@@ -88,9 +90,13 @@ def query_stardog(ark,type = 'csv'):
 def is_id(string):
     if 'ark:' in string and len(string) == 46:
         return True
+    if 'https://clarklab.uvarc.io/mds/ark:' in string and len(string) == 76:
+        return True
     if 'orchid:' in string:
         return True
     if 'https://orcid.org/' in string:
+        return True
+    if 'http://api.stardog.com' in string:
         return True
 
     return False
@@ -289,9 +295,12 @@ def parse_json(stardog_json):
 
     context = {'http://www.w3.org/1999/02/22-rdf-syntax-ns#':'@',
                'http://schema.org/_id':'@id',
+               'https://schema.org/_id':'@id',
               'http://schema.org/':'',
+              'https://schema.org/':'',
                'http://example.org/':'eg:',
                'http://example.org/':'evi:',
+               'https://w3id.org/EVI#':'evi:',
                "https://wf4ever.github.io/ro/2016-01-28/wfdesc/":'wfdesc:'
               }
 
